@@ -11,6 +11,9 @@ The project builds a complete NLP pipeline, compares multiple machine learning m
 Credit = https://www.kaggle.com/datasets/lakshmi25npathi/imdb-dataset-of-50k-movie-reviews
 
 
+## for live demo
+#### [streamlit version](https://imdb-sentiment-analysis-nlp-project-ctzgpdtjx8tfhhkrbusfcb.streamlit.app/)
+
 ##  Project Workflow
 
 ```
