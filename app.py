@@ -5,8 +5,7 @@ import string
 import contractions
 import nltk
 import pandas as pd
-import numpy as np
-import random
+import os
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk import pos_tag
@@ -18,23 +17,19 @@ st.set_page_config(
     page_icon="🎬",
     layout="wide"
 )
-
 nltk.download('stopwords')
 nltk.download('wordnet')
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
 nltk.download('omw-1.4')
-nltk.download('averaged_perceptron_tagger_eng')
 
-
-model = pickle.load(open("sentiment_model.pkl","rb"))
-vectorizer = pickle.load(open("tfidf_vectorizer.pkl","rb"))
+model = pickle.load(open("trained_models/lr_model.pkl","rb"))
+vectorizer = pickle.load(open("trained_models/tfidf_vectorizer.pkl","rb"))
 
 lemmatizer = WordNetLemmatizer()
 ActualStopwords = set(stopwords.words('english')) - {'no','not','never','nor'}
 
 def get_wordnet_tag(tag):
-
     if tag.startswith('J'):
         return wordnet.ADJ
     elif tag.startswith('V'):
@@ -46,78 +41,114 @@ def get_wordnet_tag(tag):
     else:
         return wordnet.NOUN
 
-
 def NLP_pipeline(text):
 
-    html_pattern = re.compile(r'<.*?>')
-    text = re.sub(html_pattern,' ',text)
-
+    text = re.sub(r'<.*?>', ' ', text)
     text = text.lower()
-
     text = contractions.fix(text)
+    text = text.translate(str.maketrans('', '', string.punctuation))
+    text = re.sub(r'[^\w\s+]', '', text)
+    text = re.sub(r'\d+', '', text)
 
-    text = text.translate(str.maketrans('','',string.punctuation))
-
-    text = re.sub(r'[^\w\s]', '', text)
+    # remove repeated chars
+    text = re.sub(r'(.)\1{2,}', r'\1\1', text)
 
     words = text.split()
 
     words = [w for w in words if w not in ActualStopwords]
 
+    words = [w for w in words if (len(w) > 2 and len(w) < 15) or w in ['no']]
+
     lemmatized_words = []
-
-    position_tag = pos_tag(words)
-
-    for word, tag in position_tag:
-
+    for word, tag in pos_tag(words):
         tag = get_wordnet_tag(tag)
-        new_word = lemmatizer.lemmatize(word, tag)
-        lemmatized_words.append(new_word)
+        lemmatized_words.append(lemmatizer.lemmatize(word, tag))
 
     return " ".join(lemmatized_words)
 
+
+#review,sentiment,Clean_reviews
+def save_feedback(review, cleaned_text, label):
+
+    df = pd.DataFrame(
+        [[review, label, cleaned_text]],
+        columns=['review', 'sentiment', 'Clean_reviews']
+    )
+
+    df.to_csv(
+        "feedback_data.csv",
+        mode='a',
+        header=not os.path.exists("feedback_data.csv"),
+        index=False
+    )
 st.title("🎬 Movie Review Sentiment Analysis")
 
-st.write("Enter a movie review and the model will predict whether the sentiment is **positive or negative**.")
+st.write("Enter a movie review and the model will predict sentiment.")
+
+review = st.text_area("Enter your review")
 
 
-review = st.text_area(" Enter your review")
+if "predicted" not in st.session_state:
+    st.session_state.predicted = False
 
 if st.button("Predict Sentiment"):
 
-    cleaned = NLP_pipeline(review)
-
-    review_vec = vectorizer.transform([cleaned])
-
-    prediction = model.predict(review_vec)
-
-
-
-    if prediction[0] == 'positive':
-
-        st.success(f"😊 Positive Review ")
-
+    if review.strip() == "":
+        st.warning("Please enter a review")
     else:
+        cleaned = NLP_pipeline(review)
 
-        st.error(f"😞 Negative Review )")
+        review_vec = vectorizer.transform([cleaned])
+        prediction = model.predict(review_vec)[0]
 
-    st.write("Processed Text:", cleaned)
+        # store values
+        st.session_state.predicted = True
+        st.session_state.cleaned = cleaned
+        st.session_state.prediction = prediction
+        st.session_state.review = review
 
 
-st.sidebar.title("TF-IDF Feature Insights")
+if st.session_state.predicted:
 
-st.sidebar.write("""
-**TF-IDF (Term Frequency - Inverse Document Frequency)**  
-measures how important a word is in a document relative to the dataset.
+    st.write("Processed Text:", st.session_state.cleaned)
 
-Higher TF-IDF score → word is more important.
-""")
+    if st.session_state.prediction == 'positive':
+        st.success("😊 Positive Review")
+    else:
+        st.error("😞 Negative Review")
+
+    st.subheader("Was the prediction correct?")
+
+    feedback = st.selectbox(
+        "Select option:",
+        ["Select", "Correct", "Wrong"],
+        key="feedback_select"
+    )
+
+    if feedback == "Correct":
+        st.success("Thanks! 👍")
+
+    elif feedback == "Wrong":
+
+        correct_label = st.selectbox(
+            "Select correct sentiment:",
+            ["positive", "negative"],
+            key="label_select"
+        )
+
+        if st.button("Submit Correction"):
+
+            save_feedback(
+                st.session_state.review,
+                st.session_state.cleaned,
+                correct_label
+            )
+
+            st.success("Feedback saved! Model will improve 🚀")
+
+st.sidebar.title("TF-IDF Insights")
 
 feature_names = vectorizer.get_feature_names_out()
-
-# ---------------------------
-# Model Feature Importance
-# ---------------------------
 
 if hasattr(model, "coef_"):
 
@@ -126,16 +157,21 @@ if hasattr(model, "coef_"):
     top_positive_idx = coef.argsort()[-20:]
     top_negative_idx = coef.argsort()[:20]
 
-    positive_words = [(feature_names[i], coef[i]) for i in top_positive_idx]
-    negative_words = [(feature_names[i], coef[i]) for i in top_negative_idx]
+    pos_words = [(feature_names[i], coef[i]) for i in top_positive_idx]
+    neg_words = [(feature_names[i], coef[i]) for i in top_negative_idx]
 
-    pos_df = pd.DataFrame(positive_words, columns=["Word","Weight"])
-    neg_df = pd.DataFrame(negative_words, columns=["Word","Weight"])
+    st.sidebar.subheader("Top Positive Words")
+    st.sidebar.dataframe(pd.DataFrame(pos_words, columns=["Word","Weight"]).sort_values("Weight", ascending=False))
 
-    st.sidebar.subheader("Top 20 Positive Words")
+    st.sidebar.subheader("Top Negative Words")
+    st.sidebar.dataframe(pd.DataFrame(neg_words, columns=["Word","Weight"]).sort_values("Weight"))
 
-    st.sidebar.dataframe(pos_df.sort_values("Weight", ascending=False))
+# if os.path.exists("feedback_data.csv"):
+#     df = pd.read_csv("feedback_data.csv")
+#     st.sidebar.write(f"Feedback samples: {len(df)}")
 
-    st.sidebar.subheader("Top 20 Negative Words")
 
-    st.sidebar.dataframe(neg_df.sort_values("Weight"))
+# #we can do this manuualy Because providing this acces to Users can interupt the model and can be risky 
+# if st.sidebar.button("Retrain Model"):
+#     os.system("python retrain.py")
+#     st.success("Model retrained!")

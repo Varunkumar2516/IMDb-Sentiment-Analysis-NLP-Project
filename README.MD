@@ -1,8 +1,10 @@
 
-#  IMDb Movie Review Sentiment Analysis
+#  IMDb Movie Review Sentiment Analysis  
 
 A **Machine Learning + Natural Language Processing (NLP)** project that classifies IMDb movie reviews as **Positive or Negative**.
 
+
+It goes beyond a basic ML model by integrating a Human-in-the-Loop (HITL) feedback system, allowing the model to improve over time using real user corrections.
 The project builds a complete NLP pipeline, compares multiple machine learning models, and deploys the best model using **Streamlit**.
 
 ---
@@ -31,7 +33,13 @@ Model Evaluation
 Best Model Selection
 ↓
 Streamlit Deployment
-
+↓
+Model IMprovement 
+↓
+Feedback from user
+Retrain After Certain User Reviews
+↓
+90% accuracy of Logistic Regression
 ```
 
 ---
@@ -64,7 +72,18 @@ not impress movie
 
 ##  Feature Engineering
 
-Text data was converted into numerical form using **TF-IDF Vectorization**.
+Text data was converted into numerical form using **TF-IDF Vectorization => 
+
+##### 50000*10000
+Baseline model 
+max_features = 10000
+
+##### 50000*45000**.
+With this configuration
+max_features = 45000
+min_df = 10
+max_df = 0.8
+ngram_range = (1,2)
 
 TF-IDF measures how important a word is in a document relative to the entire dataset and is widely used for traditional NLP models.
 
@@ -82,7 +101,7 @@ TF-IDF measures how important a word is in a document relative to the entire dat
 | SVM | **0.893** |
 
 ###  Best Model
-**Support Vector Machine (SVM)** achieved the best performance.
+**Logistic Regression** achieved the best performance.
 
 ---
 
@@ -149,19 +168,20 @@ Users can enter a movie review and get **real-time sentiment predictions**.
 ```
 
 Sentiment-Analysis-IMDb
-│
-├── app.py
-├── imdb_Dataset.csv
-├── Cleaned_Reviews_data.csv
-├── IMDB Sentiment Analysis.ipynb
-├── sentiment_model.pkl
-├── tfidf_vectorizer.pkl
-├── requirements.txt
-└── README.md
-
+│── app.py # Streamlit application
+│── retrain.py # Script to retrain model with feedback 
+│── trained_models/ 
+    │ ├── lr_model.pkl 
+    │ └── tfidf_vectorizer.pkl 
+│── feedback_data.csv # Stores user feedback 
+│── Cleaned_Reviews_data.csv # Original dataset 
+│── imbd_Dataset_data.csv # actual dataset 
+│── requirements.txt 
+│── README.md
 ```
 
 ---
+
 
 ##  Technologies Used
 
